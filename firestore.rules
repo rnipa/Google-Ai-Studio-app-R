@@ -1,0 +1,446 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===== Reusable Hardened Primitives =====
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && request.auth.token.email_verified == true;
+    }
+
+    function isOwnerRead(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isNum(val) {
+      return val is int || val is float;
+    }
+
+    function isValidStr(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    // ===== Entity Validation Helpers =====
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'shopName', 'pinHash', 'pinEnabled', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'shopName', 'pinHash', 'pinEnabled', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && isValidStr(data.email, 3, 200)
+        && isValidStr(data.displayName, 0, 120)
+        && isValidStr(data.shopName, 1, 120)
+        && isValidStr(data.pinHash, 0, 128)
+        && data.pinEnabled is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspace(data, userId) {
+      return data.keys().hasAll([
+        'ownerId', 'mfsCapital', 'rechargeCapital', 'dailyTarget',
+        'obk', 'ong', 'ork', 'otk', 'omc', 'ogp', 'orobi', 'oair', 'obl', 'orc',
+        'cbk', 'cng', 'crk', 'ctk', 'cmc', 'cgp', 'crobi', 'cair', 'cbl', 'crc',
+        'openingNote', 'closingNote', 'createdAt', 'updatedAt'
+      ])
+        && data.keys().hasOnly([
+          'ownerId', 'mfsCapital', 'rechargeCapital', 'dailyTarget',
+          'obk', 'ong', 'ork', 'otk', 'omc', 'ogp', 'orobi', 'oair', 'obl', 'orc',
+          'cbk', 'cng', 'crk', 'ctk', 'cmc', 'cgp', 'crobi', 'cair', 'cbl', 'crc',
+          'openingNote', 'closingNote', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.ownerId == userId
+        && data.ownerId == request.auth.uid
+        && isNum(data.mfsCapital) && isNum(data.rechargeCapital) && isNum(data.dailyTarget)
+        && isNum(data.obk) && isNum(data.ong) && isNum(data.ork) && isNum(data.otk) && isNum(data.omc)
+        && isNum(data.ogp) && isNum(data.orobi) && isNum(data.oair) && isNum(data.obl) && isNum(data.orc)
+        && isNum(data.cbk) && isNum(data.cng) && isNum(data.crk) && isNum(data.ctk) && isNum(data.cmc)
+        && isNum(data.cgp) && isNum(data.crobi) && isNum(data.cair) && isNum(data.cbl) && isNum(data.crc)
+        && isValidStr(data.openingNote, 0, 1000)
+        && isValidStr(data.closingNote, 0, 1000)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDailyHistory(data, userId, historyId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'type', 'dateIso',
+        'opening', 'closing', 'openingMFS', 'closingMFS', 'openingRecharge', 'closingRecharge',
+        'mfs', 'recharge', 'profit', 'note',
+        'withdrawalAmount', 'withdrawalMethod', 'withdrawalSource', 'withdrawalCategory', 'withdrawalReason',
+        'createdAt', 'updatedAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'type', 'dateIso',
+          'opening', 'closing', 'openingMFS', 'closingMFS', 'openingRecharge', 'closingRecharge',
+          'mfs', 'recharge', 'profit', 'note',
+          'withdrawalAmount', 'withdrawalMethod', 'withdrawalSource', 'withdrawalCategory', 'withdrawalReason',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == historyId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.type in ['dailyClosing', 'ownerWithdrawal']
+        && isValidStr(data.dateIso, 4, 40)
+        && isNum(data.opening) && isNum(data.closing)
+        && isNum(data.openingMFS) && isNum(data.closingMFS)
+        && isNum(data.openingRecharge) && isNum(data.closingRecharge)
+        && isNum(data.mfs) && isNum(data.recharge) && isNum(data.profit)
+        && isValidStr(data.note, 0, 1000)
+        && isNum(data.withdrawalAmount) && data.withdrawalAmount >= 0
+        && isValidStr(data.withdrawalMethod, 0, 40)
+        && isValidStr(data.withdrawalSource, 0, 20)
+        && isValidStr(data.withdrawalCategory, 0, 60)
+        && isValidStr(data.withdrawalReason, 0, 300)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLedgerClient(data, userId, clientId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'name', 'mobile',
+        'totalGiven', 'totalTaken', 'refundGiven', 'refundReceived',
+        'balance', 'txCount', 'lastTxIso', 'createdAt', 'updatedAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'mobile',
+          'totalGiven', 'totalTaken', 'refundGiven', 'refundReceived',
+          'balance', 'txCount', 'lastTxIso', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == clientId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidStr(data.name, 1, 120)
+        && isValidStr(data.mobile, 0, 30)
+        && isNum(data.totalGiven) && data.totalGiven >= 0
+        && isNum(data.totalTaken) && data.totalTaken >= 0
+        && isNum(data.refundGiven) && data.refundGiven >= 0
+        && isNum(data.refundReceived) && data.refundReceived >= 0
+        && isNum(data.balance)
+        && isNum(data.txCount) && data.txCount >= 0
+        && isValidStr(data.lastTxIso, 0, 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLedgerTx(data, userId, clientId, txId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'clientId', 'amount', 'type', 'method', 'fundSource', 'note', 'txDateIso', 'createdAt', 'updatedAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'clientId', 'amount', 'type', 'method', 'fundSource', 'note', 'txDateIso', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == txId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidId(data.clientId) && data.clientId == clientId
+        && isNum(data.amount) && data.amount > 0
+        && data.type in ['gave', 'took', 'refundGiven', 'refundReceived']
+        && isValidStr(data.method, 1, 60)
+        && data.fundSource in ['mfs', 'recharge', 'external']
+        && isValidStr(data.note, 0, 300)
+        && isValidStr(data.txDateIso, 4, 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLedgerArchive(data, userId, archiveId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'clientId', 'personName', 'personMobile',
+        'settledAtIso', 'businessDate', 'finalBalance',
+        'totalGiven', 'totalTaken', 'refundGiven', 'refundReceived', 'txCount', 'createdAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'clientId', 'personName', 'personMobile',
+          'settledAtIso', 'businessDate', 'finalBalance',
+          'totalGiven', 'totalTaken', 'refundGiven', 'refundReceived', 'txCount', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == archiveId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidId(data.clientId)
+        && isValidStr(data.personName, 1, 120)
+        && isValidStr(data.personMobile, 0, 30)
+        && isValidStr(data.settledAtIso, 4, 40)
+        && isValidStr(data.businessDate, 4, 20)
+        && isNum(data.finalBalance) && data.finalBalance == 0
+        && isNum(data.totalGiven) && data.totalGiven >= 0
+        && isNum(data.totalTaken) && data.totalTaken >= 0
+        && isNum(data.refundGiven) && data.refundGiven >= 0
+        && isNum(data.refundReceived) && data.refundReceived >= 0
+        && isNum(data.txCount) && data.txCount >= 1
+        && data.createdAt is timestamp;
+    }
+
+    function isValidArchivedTx(data, userId, archiveId, txId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'archiveId', 'amount', 'type', 'method', 'fundSource', 'txDateIso', 'createdAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'archiveId', 'amount', 'type', 'method', 'fundSource', 'txDateIso', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == txId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidId(data.archiveId) && data.archiveId == archiveId
+        && isNum(data.amount) && data.amount > 0
+        && data.type in ['gave', 'took', 'refundGiven', 'refundReceived']
+        && isValidStr(data.method, 1, 60)
+        && data.fundSource in ['mfs', 'recharge', 'external']
+        && isValidStr(data.txDateIso, 4, 40)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidExpense(data, userId, expenseId) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'date', 'amount', 'category', 'method', 'note', 'createdAt', 'updatedAt'
+      ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'date', 'amount', 'category', 'method', 'note', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id) && data.id == expenseId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidStr(data.date, 8, 20)
+        && isNum(data.amount) && data.amount > 0
+        && isValidStr(data.category, 1, 60)
+        && isValidStr(data.method, 1, 40)
+        && isValidStr(data.note, 0, 200)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBudget(data, userId, budgetId) {
+      return data.keys().hasAll(['id', 'ownerId', 'category', 'amount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'category', 'amount', 'createdAt', 'updatedAt'])
+        && isValidId(data.id) && data.id == budgetId
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isValidStr(data.category, 1, 60)
+        && isNum(data.amount) && data.amount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavingsGoal(data, userId) {
+      return data.keys().hasAll(['ownerId', 'target', 'saved', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'target', 'saved', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId) && data.ownerId == userId && data.ownerId == request.auth.uid
+        && isNum(data.target) && data.target >= 0
+        && isNum(data.saved) && data.saved >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // ===== Collection Rules =====
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwnerRead(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isVerifiedOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'shopName', 'pinHash', 'pinEnabled', 'updatedAt']);
+      allow delete: if false;
+
+      match /workspace/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'current' && isOwnerRead(userId);
+        allow list: if false;
+        allow create: if isValidId(userId) && isValidId(docId) && docId == 'current'
+          && isVerifiedOwner(userId)
+          && isValidWorkspace(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(docId) && docId == 'current'
+          && isVerifiedOwner(userId)
+          && isValidWorkspace(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'mfsCapital', 'rechargeCapital', 'dailyTarget',
+            'obk', 'ong', 'ork', 'otk', 'omc', 'ogp', 'orobi', 'oair', 'obl', 'orc',
+            'cbk', 'cng', 'crk', 'ctk', 'cmc', 'cgp', 'crobi', 'cair', 'cbl', 'crc',
+            'openingNote', 'closingNote', 'updatedAt'
+          ]);
+        allow delete: if false;
+      }
+
+      match /dailyHistories/{historyId} {
+        allow get: if isValidId(userId) && isValidId(historyId) && isOwnerRead(userId);
+        allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(historyId)
+          && isVerifiedOwner(userId)
+          && isValidDailyHistory(incoming(), userId, historyId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(historyId)
+          && isVerifiedOwner(userId)
+          && isValidDailyHistory(incoming(), userId, historyId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().type == existing().type
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'dateIso', 'opening', 'closing', 'openingMFS', 'closingMFS',
+            'openingRecharge', 'closingRecharge', 'mfs', 'recharge', 'profit', 'note', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(historyId) && isVerifiedOwner(userId);
+      }
+
+      match /ledgerClients/{clientId} {
+        allow get: if isValidId(userId) && isValidId(clientId) && isOwnerRead(userId);
+        allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(clientId)
+          && isVerifiedOwner(userId)
+          && isValidLedgerClient(incoming(), userId, clientId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(clientId)
+          && isVerifiedOwner(userId)
+          && isValidLedgerClient(incoming(), userId, clientId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobile', 'updatedAt'])
+            || incoming().diff(existing()).affectedKeys().hasOnly([
+              'totalGiven', 'totalTaken', 'refundGiven', 'refundReceived',
+              'balance', 'txCount', 'lastTxIso', 'updatedAt'
+            ])
+          );
+        allow delete: if isValidId(userId) && isValidId(clientId) && isVerifiedOwner(userId);
+
+        match /transactions/{txId} {
+          allow get: if isValidId(userId) && isValidId(clientId) && isValidId(txId) && isOwnerRead(userId);
+          allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isValidId(userId) && isValidId(clientId) && isValidId(txId)
+            && isVerifiedOwner(userId)
+            && isValidLedgerTx(incoming(), userId, clientId, txId)
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/ledgerClients/$(clientId))
+            && get(/databases/$(database)/documents/users/$(userId)/ledgerClients/$(clientId)).data.ownerId == request.auth.uid;
+          allow update: if isValidId(userId) && isValidId(clientId) && isValidId(txId)
+            && isVerifiedOwner(userId)
+            && isValidLedgerTx(incoming(), userId, clientId, txId)
+            && incoming().ownerId == existing().ownerId
+            && incoming().id == existing().id
+            && incoming().clientId == existing().clientId
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/ledgerClients/$(clientId))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['amount', 'type', 'method', 'fundSource', 'note', 'txDateIso', 'updatedAt']);
+          allow delete: if isValidId(userId) && isValidId(clientId) && isValidId(txId)
+            && isVerifiedOwner(userId)
+            && exists(/databases/$(database)/documents/users/$(userId)/ledgerClients/$(clientId));
+        }
+      }
+
+      match /ledgerArchives/{archiveId} {
+        allow get: if isValidId(userId) && isValidId(archiveId) && isOwnerRead(userId);
+        allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(archiveId)
+          && isVerifiedOwner(userId)
+          && isValidLedgerArchive(incoming(), userId, archiveId)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(archiveId) && isVerifiedOwner(userId);
+
+        match /transactions/{txId} {
+          allow get: if isValidId(userId) && isValidId(archiveId) && isValidId(txId) && isOwnerRead(userId);
+          allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isValidId(userId) && isValidId(archiveId) && isValidId(txId)
+            && isVerifiedOwner(userId)
+            && isValidArchivedTx(incoming(), userId, archiveId, txId)
+            && incoming().createdAt == request.time
+            && existsAfter(/databases/$(database)/documents/users/$(userId)/ledgerArchives/$(archiveId));
+          allow update: if false;
+          allow delete: if isValidId(userId) && isValidId(archiveId) && isValidId(txId) && isVerifiedOwner(userId);
+        }
+      }
+
+      match /expenses/{expenseId} {
+        allow get: if isValidId(userId) && isValidId(expenseId) && isOwnerRead(userId);
+        allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(expenseId)
+          && isVerifiedOwner(userId)
+          && isValidExpense(incoming(), userId, expenseId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(expenseId)
+          && isVerifiedOwner(userId)
+          && isValidExpense(incoming(), userId, expenseId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['date', 'amount', 'category', 'method', 'note', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(expenseId) && isVerifiedOwner(userId);
+      }
+
+      match /categoryBudgets/{budgetId} {
+        allow get: if isValidId(userId) && isValidId(budgetId) && isOwnerRead(userId);
+        allow list: if isOwnerRead(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(budgetId)
+          && isVerifiedOwner(userId)
+          && isValidBudget(incoming(), userId, budgetId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(budgetId)
+          && isVerifiedOwner(userId)
+          && isValidBudget(incoming(), userId, budgetId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['category', 'amount', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(budgetId) && isVerifiedOwner(userId);
+      }
+
+      match /settings/{settingId} {
+        allow get: if isValidId(userId) && isValidId(settingId) && settingId == 'savingsGoal' && isOwnerRead(userId);
+        allow list: if false;
+        allow create: if isValidId(userId) && isValidId(settingId) && settingId == 'savingsGoal'
+          && isVerifiedOwner(userId)
+          && isValidSavingsGoal(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(settingId) && settingId == 'savingsGoal'
+          && isVerifiedOwner(userId)
+          && isValidSavingsGoal(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['target', 'saved', 'updatedAt']);
+        allow delete: if false;
+      }
+    }
+  }
+}

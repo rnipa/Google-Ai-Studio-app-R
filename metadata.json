@@ -1,0 +1,6 @@
+{
+  "name": "Rasidul Premium ERP",
+  "description": "Cloud-backed MFS, Mobile Recharge, External Ledger, and Expense Tracker ERP for Rubaiya Pharmacy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,259 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private business owner profile and security preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "shopName": { "type": "string", "maxLength": 120 },
+        "pinHash": { "type": "string", "maxLength": 128 },
+        "pinEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "shopName", "pinEnabled", "createdAt", "updatedAt"]
+    },
+    "WorkspaceState": {
+      "title": "WorkspaceState",
+      "description": "Live daily shift balances, capital, and notes.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mfsCapital": { "type": "number" },
+        "rechargeCapital": { "type": "number" },
+        "dailyTarget": { "type": "number" },
+        "obk": { "type": "number" },
+        "ong": { "type": "number" },
+        "ork": { "type": "number" },
+        "otk": { "type": "number" },
+        "omc": { "type": "number" },
+        "ogp": { "type": "number" },
+        "orobi": { "type": "number" },
+        "oair": { "type": "number" },
+        "obl": { "type": "number" },
+        "orc": { "type": "number" },
+        "cbk": { "type": "number" },
+        "cng": { "type": "number" },
+        "crk": { "type": "number" },
+        "ctk": { "type": "number" },
+        "cmc": { "type": "number" },
+        "cgp": { "type": "number" },
+        "crobi": { "type": "number" },
+        "cair": { "type": "number" },
+        "cbl": { "type": "number" },
+        "crc": { "type": "number" },
+        "openingNote": { "type": "string", "maxLength": 1000 },
+        "closingNote": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId", "mfsCapital", "rechargeCapital", "dailyTarget",
+        "obk", "ong", "ork", "otk", "omc", "ogp", "orobi", "oair", "obl", "orc",
+        "cbk", "cng", "crk", "ctk", "cmc", "cgp", "crobi", "cair", "cbl", "crc",
+        "openingNote", "closingNote", "createdAt", "updatedAt"
+      ]
+    },
+    "DailyHistory": {
+      "title": "DailyHistory",
+      "description": "Saved daily closing summary or owner withdrawal entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["dailyClosing", "ownerWithdrawal"], "maxLength": 32 },
+        "dateIso": { "type": "string", "maxLength": 40 },
+        "opening": { "type": "number" },
+        "closing": { "type": "number" },
+        "openingMFS": { "type": "number" },
+        "closingMFS": { "type": "number" },
+        "openingRecharge": { "type": "number" },
+        "closingRecharge": { "type": "number" },
+        "mfs": { "type": "number" },
+        "recharge": { "type": "number" },
+        "profit": { "type": "number" },
+        "note": { "type": "string", "maxLength": 1000 },
+        "withdrawalAmount": { "type": "number" },
+        "withdrawalMethod": { "type": "string", "maxLength": 40 },
+        "withdrawalSource": { "type": "string", "maxLength": 20 },
+        "withdrawalCategory": { "type": "string", "maxLength": 60 },
+        "withdrawalReason": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "type", "dateIso", "mfs", "recharge", "profit", "note", "createdAt", "updatedAt"]
+    },
+    "LedgerClient": {
+      "title": "LedgerClient",
+      "description": "External person or customer ledger account.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "mobile": { "type": "string", "maxLength": 30 },
+        "totalGiven": { "type": "number" },
+        "totalTaken": { "type": "number" },
+        "refundGiven": { "type": "number" },
+        "refundReceived": { "type": "number" },
+        "balance": { "type": "number" },
+        "txCount": { "type": "number" },
+        "lastTxIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "mobile", "totalGiven", "totalTaken", "refundGiven", "refundReceived", "balance", "txCount", "createdAt", "updatedAt"]
+    },
+    "LedgerTransaction": {
+      "title": "LedgerTransaction",
+      "description": "Individual transaction under an external ledger client.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["gave", "took", "refundGiven", "refundReceived"], "maxLength": 32 },
+        "method": { "type": "string", "maxLength": 60 },
+        "fundSource": { "type": "string", "enum": ["mfs", "recharge", "external"], "maxLength": 20 },
+        "note": { "type": "string", "maxLength": 300 },
+        "txDateIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "clientId", "amount", "type", "method", "fundSource", "txDateIso", "createdAt", "updatedAt"]
+    },
+    "LedgerArchive": {
+      "title": "LedgerArchive",
+      "description": "Settled zero-balance ledger cycle snapshot.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "personName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "personMobile": { "type": "string", "maxLength": 30 },
+        "settledAtIso": { "type": "string", "maxLength": 40 },
+        "businessDate": { "type": "string", "maxLength": 20 },
+        "finalBalance": { "type": "number" },
+        "totalGiven": { "type": "number" },
+        "totalTaken": { "type": "number" },
+        "refundGiven": { "type": "number" },
+        "refundReceived": { "type": "number" },
+        "txCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id", "ownerId", "clientId", "personName", "personMobile",
+        "settledAtIso", "businessDate", "finalBalance", "totalGiven",
+        "totalTaken", "refundGiven", "refundReceived", "txCount", "createdAt"
+      ]
+    },
+    "ArchivedTransaction": {
+      "title": "ArchivedTransaction",
+      "description": "Transaction snapshot preserved inside a settled ledger archive.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "archiveId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["gave", "took", "refundGiven", "refundReceived"], "maxLength": 32 },
+        "method": { "type": "string", "maxLength": 60 },
+        "fundSource": { "type": "string", "enum": ["mfs", "recharge", "external"], "maxLength": 20 },
+        "txDateIso": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "archiveId", "amount", "type", "method", "fundSource", "txDateIso", "createdAt"]
+    },
+    "PersonalExpense": {
+      "title": "PersonalExpense",
+      "description": "Manual personal expense entry for Expense Tracker Pro.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "date": { "type": "string", "maxLength": 20 },
+        "amount": { "type": "number" },
+        "category": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "method": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "note": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "date", "amount", "category", "method", "note", "createdAt", "updatedAt"]
+    },
+    "CategoryBudget": {
+      "title": "CategoryBudget",
+      "description": "Monthly spending limit for an expense category.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "category", "amount", "createdAt", "updatedAt"]
+    },
+    "SavingsGoal": {
+      "title": "SavingsGoal",
+      "description": "Owner monthly/overall savings goal.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "target": { "type": "number" },
+        "saved": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "target", "saved", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and PIN lock settings."
+    },
+    "/users/{userId}/workspace/{docId}": {
+      "schema": { "$ref": "#/entities/WorkspaceState" },
+      "description": "Live business shift workspace state (docId = 'current')."
+    },
+    "/users/{userId}/dailyHistories/{historyId}": {
+      "schema": { "$ref": "#/entities/DailyHistory" },
+      "description": "Daily profit closings and owner withdrawal log."
+    },
+    "/users/{userId}/ledgerClients/{clientId}": {
+      "schema": { "$ref": "#/entities/LedgerClient" },
+      "description": "External ledger client accounts."
+    },
+    "/users/{userId}/ledgerClients/{clientId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/LedgerTransaction" },
+      "description": "Active ledger transactions for a client."
+    },
+    "/users/{userId}/ledgerArchives/{archiveId}": {
+      "schema": { "$ref": "#/entities/LedgerArchive" },
+      "description": "Archived settled ledger cycles."
+    },
+    "/users/{userId}/ledgerArchives/{archiveId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/ArchivedTransaction" },
+      "description": "Archived transactions belonging to a settled ledger cycle."
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/PersonalExpense" },
+      "description": "Manual personal expense records."
+    },
+    "/users/{userId}/categoryBudgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/CategoryBudget" },
+      "description": "Monthly budget limits per category."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SavingsGoal" },
+      "description": "Savings goal settings (settingId = 'savingsGoal')."
+    }
+  }
+}
